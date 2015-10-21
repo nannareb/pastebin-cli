@@ -1,44 +1,119 @@
-#!/usr/bin/python
-#This is your user dev key, can be retrieved here:
-# http://pastebin.com/api#1
-key = "bbe6ef885cea3872b7e459671081893d"
-#This is the user login key, can be retrieved from pastebin-userlogin
-userkey = "b6c39ccb58e100eba18b7d68cec3c165"
-
-# don't touch anything below this line
-import sys
+#!/usr/bin/env python
+import sys, os
 import requests
+import json
 import argparse
-
-parser = argparse.ArgumentParser()
+config = {}
+if not os.path.exists(os.path.expanduser('~/.config/pastebin')):
+	os.makedirs(os.path.expanduser('~/.config/pastebin'))
+	file = open(os.path.expanduser('~/.config/pastebin/pastebin.conf'),'w')
+	config = {'UserKey': 'notset', 'DeveloperKey':'notset'}
+	json.dump(config,file)
+try:
+	with open(os.path.expanduser('~/.config/pastebin/pastebin.conf'),'r') as configfile:
+		config = json.load(configfile)
+except:
+	pass
+key = config["DeveloperKey"]
+userkey = config["UserKey"]
+parser = argparse.ArgumentParser(description="A command line interface for pastebin")
 parser.add_argument("-p","--private", action="store_true", help="set paste to be private")
-parser.add_argument("-u","--unlisted", action="store_true", help="set paste to be unlisted")
+parser.add_argument("--unlisted", action="store_true", help="set paste to be unlisted")
 parser.add_argument("-v", "--verbose", action="store_true", help="enable verbose output")
-parser.add_argument("name", help="the title of the paste")
+parser.add_argument("-n", "--name", help="the title of the paste")
+parser.add_argument("-u", "--upload", action="store_true", help="upload content from stdin")
+parser.add_argument("-g", "--get", help="get paste by id")
+parser.add_argument("-d", "--delete", help="delete a paste");
+
+parser.add_argument("--get-user-key", action="store_true", help="get the users login key")
+parser.add_argument("--username", help="sets username for use with get-user-key")
+parser.add_argument("--password", help="sets password for use with get-user-key")
+#####
+## FUNCTION DEFINITIONS
+#####
+def postPaste(args):
+	paste_name = args.name
+	paste_private=0
+	if args.unlisted >= 1:
+		if args.verbose:
+			print("enabling unlisted paste")
+		paste_private=1
+	if args.private:
+		if args.verbose:
+			print("enabling private paste")
+		paste_private=2
+	url = "http://pastebin.com/api/api_post.php"
+	postdata = {
+		"api_paste_code": sys.stdin.read().strip(),
+		"api_dev_key": key,
+		"api_option": "paste",
+		"api_paste_private": paste_private,
+		"api_paste_name": paste_name,
+		"api_user_key" : userkey
+	}
+	#print(postdata)
+	print(requests.post(url, data=postdata).text)
+	return
+
+def getPaste(args):
+	if args.verbose:
+		print("getting paste")
+	url = "http://pastebin.com/raw.php?i=" + args.get
+	print(requests.get(url).text)
+	return
+
+def deletePaste(args):
+	print("deleting paste")
+	postdata = {
+		"api_dev_key" : key,
+		"api_user_key" : userkey,
+		"api_paste_key" : args.delete,
+		"api_option" : "delete"
+	}
+	url = "http://pastebin.com/api/api_post.php"
+	print(requests.post(url, data=postdata).text)
+def setUserKey(args,config):
+	if not args.username:
+		print("you must specify a username, try again")
+		return;
+	if not args.password:
+		print("you must specify a password, try again")
+		return;
+	url = "http://pastebin.com/api/api_login.php"
+	postdata = {
+		"api_dev_key": key,
+		"api_user_name" : args.username,
+		"api_user_password" : args.password }
+	api_response = requests.post(url, data=postdata).text
+	if api_response.startswith("Bad API request"):
+		print("Something Went wrong, try again later.")
+		return
+	config["UserKey"]=api_response
+	with open(os.path.expanduser('~/.config/pastebin/pastebin.conf'),'w') as configfile:
+		json.dump(config,configfile)
+#####
+## function calls
+#####
 args = parser.parse_args();
+if key == "notset":
+	print("Please set your developer key in ~/.config/pastebin/pastebin.conf")
+	print("To find your developer key, go to:")
+	print("http://pastebin.com/api#1")
+	sys.exit(1)
 if args.verbose:
 	print ("pastebin starting up")
-paste_name = args.name
-paste_private=0
-if args.unlisted >= 1:
-	if args.verbose:
-		print("enabling unlisted paste")
-	paste_private=1
+if args.upload:
+	postPaste(args)
 
-if args.private:
-	if args.verbose:
-		print("enabling private paste")
-	paste_private=2
+if args.get:
+	getPaste(args)
 
-url = "http://pastebin.com/api/api_post.php"
-postdata = {
-	"api_paste_code": sys.stdin.read().strip(),
-	"api_dev_key": key,
-	"api_option": "paste",
-	"api_paste_private": paste_private,
-	"api_paste_name": paste_name,
-	"api_user_key" : userkey
-}
+if args.delete:
+	deletePaste(args)
 
-#print(postdata)
-print(requests.post(url, data=postdata).text)
+if args.get_user_key:
+	setUserKey(args,config)
+
+if len(sys.argv)==1:
+	parser.print_help()
+	sys.exit()
