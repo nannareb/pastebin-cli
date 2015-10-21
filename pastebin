@@ -1,0 +1,44 @@
+#!/usr/bin/python
+#This is your user dev key, can be retrieved here:
+# http://pastebin.com/api#1
+key = "bbe6ef885cea3872b7e459671081893d"
+#This is the user login key, can be retrieved from pastebin-userlogin
+userkey = "b6c39ccb58e100eba18b7d68cec3c165"
+
+# don't touch anything below this line
+import sys
+import requests
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-p","--private", action="store_true", help="set paste to be private")
+parser.add_argument("-u","--unlisted", action="store_true", help="set paste to be unlisted")
+parser.add_argument("-v", "--verbose", action="store_true", help="enable verbose output")
+parser.add_argument("name", help="the title of the paste")
+args = parser.parse_args();
+if args.verbose:
+	print ("pastebin starting up")
+paste_name = args.name
+paste_private=0
+if args.unlisted >= 1:
+	if args.verbose:
+		print("enabling unlisted paste")
+	paste_private=1
+
+if args.private:
+	if args.verbose:
+		print("enabling private paste")
+	paste_private=2
+
+url = "http://pastebin.com/api/api_post.php"
+postdata = {
+	"api_paste_code": sys.stdin.read().strip(),
+	"api_dev_key": key,
+	"api_option": "paste",
+	"api_paste_private": paste_private,
+	"api_paste_name": paste_name,
+	"api_user_key" : userkey
+}
+
+#print(postdata)
+print(requests.post(url, data=postdata).text)
